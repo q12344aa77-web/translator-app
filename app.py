@@ -412,22 +412,4 @@ with tab_voice:
     )
 
 
-    t = item.get("time", "")
-    typ = item.get("type", "")
-    desc = ""
-    if typ == "file":
-        desc = f"파일: {item.get('file','')}"
-    elif typ == "image":
-        desc = f"이미지: {item.get('file','')}"
-    else:
-        desc = "텍스트"
-    st.markdown(f"- **{t}** · {desc} · {item.get('lang','')} · {item.get('mode','')} · {item.get('tone','')}")
-
-if st.session_state.get("_show_vocab", False):
-    st.divider()
-    st.subheader("📚 단어장 내용")
-    if st.session_state.vocab:
-        st.json(st.session_state.vocab)
-    else:
-        st.info("아직 저장된 항목이 없어요.")
-
+   
