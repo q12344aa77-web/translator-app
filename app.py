@@ -174,19 +174,14 @@ with st.sidebar:
 
 st.title("🌐 번역기")
 
-model_name = st.selectbox(
-    "모델",
-    ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
-    index=0,
-    help="배포 환경/계정에 따라 지원 모델이 다를 수 있어요.",
-)
+
 
 if not api_key:
     st.warning("사이드바에 Gemini API 키를 입력해 주세요. (Streamlit Cloud에서는 Secrets에 넣으면 입력 없이 동작)")
     st.stop()
 
 try:
-    model = init_model(api_key, model_name)
+    model = init_model(api_key, "gemini-2.5-flash-lite")
 except Exception as e:
     st.error(f"모델 초기화 실패: {e}")
     st.stop()
@@ -416,9 +411,7 @@ with tab_voice:
         height=340,
     )
 
-st.divider()
-st.subheader("🧾 실행 기록(최근 10개)")
-for item in st.session_state.history[-10:][::-1]:
+
     t = item.get("time", "")
     typ = item.get("type", "")
     desc = ""
@@ -437,3 +430,4 @@ if st.session_state.get("_show_vocab", False):
         st.json(st.session_state.vocab)
     else:
         st.info("아직 저장된 항목이 없어요.")
+
