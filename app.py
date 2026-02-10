@@ -325,11 +325,12 @@ with tab_img:
             with st.spinner("이미지 처리 중..."):
                 try:
                     prompt = f"""
-너는 OCR+번역 도우미야.
-1) 이미지 안의 텍스트를 가능한 정확히 추출해.
-2) 추출한 텍스트를 자연스러운 {lang}로 {'번역' if mode=='번역' else '해석(의미 중심)'}해.
-3) 톤은 '{tone}'로 맞춰.
-4) 아래 형식으로 출력:
+You are an OCR + Translation Assistant.
+
+Extract the text within the image as accurately as possible.
+Translate the extracted text into natural {lang} {'translation' if mode=='translation' else 'interpretation (meaning-focused)'}.
+Match the tone to '{tone}'.
+Output in the following format:
 
 [추출 텍스트]
 ...
@@ -413,3 +414,4 @@ with tab_voice:
 
 
    
+
