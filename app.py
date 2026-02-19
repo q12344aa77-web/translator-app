@@ -353,18 +353,18 @@ Output in the following format:
         out_txt = st.session_state.last_output
         download_bytes("image_translation.txt", out_txt.encode("utf-8"), "text/plain")
 
+# ✅ tab_voice 블록을 아래 코드로 "통째로 교체"하면 돼
 with tab_voice:
-    st.subheader("🎙️ 음성 인식 (브라우저 기반)")
-    st.caption("마이크로 말하면 텍스트가 쌓여요. 복사해서 ‘텍스트 입력’ 탭에 붙여넣고 실행하면 됩니다. (Gemini 호출 과다 방지)")
+    st.subheader("🎙️ 음성 인식")
+    st.caption("🔴 듣는 중 표시 + 10초 무음 경고 + 1분 무음 자동 정지")
 
     components.html(
         """
-        <div style="font-family: sans-serif; display:flex; flex-direction:column; gap:8px;">
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div style="font-family: sans-serif; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <button id="start" style="padding:8px 12px;">🎙️ 시작</button>
-            <button id="stop" style="padding:8px 12px;">⏹️ 중지</button>
-            <button id="clear" style="padding:8px 12px;">🧹 지우기</button>
-            <button id="copy" style="padding:8px 12px;">📋 복사</button>
+            <button id="stop" style="padding:8px 12px;" disabled>⏹️ 중지</button>
+
             <select id="lang" style="padding:8px 12px;">
               <option value="ko-KR" selected>한국어</option>
               <option value="en-US">영어</option>
@@ -373,45 +373,189 @@ with tab_voice:
               <option value="zh-CN">중국어</option>
             </select>
           </div>
-          <textarea id="out" style="width:100%; height:220px; padding:10px;"></textarea>
-          <div style="opacity:.75; font-size:12px;">지원 브라우저: 크롬/엣지 권장</div>
+
+          <div id="status"
+               style="padding:10px 12px; border-radius:10px; background:#f3f4f6; border:1px solid #e5e7eb;">
+            ⚪️ 대기 중
+          </div>
+
+          <textarea id="out" style="width:100%; height:220px; padding:10px;" placeholder="여기에 인식 텍스트가 표시됩니다..."></textarea>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="copy" style="padding:8px 12px;">📋 복사</button>
+            <button id="clear" style="padding:8px 12px;">🧹 지우기</button>
+          </div>
+
+          <div style="opacity:.75; font-size:12px;">
+            * 10초 동안 결과가 안 들어오면 “소리가 들리지 않아요” 표시<br/>
+            * 1분 동안 결과가 없으면 자동으로 중지됩니다
+          </div>
         </div>
 
         <script>
           const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-          const out = document.getElementById("out");
-          const sel = document.getElementById("lang");
 
-          if (!SpeechRecognition) {
-            out.value = "이 브라우저는 Web Speech API를 지원하지 않습니다. 크롬/엣지로 시도해 주세요.";
+          const startBtn = document.getElementById("start");
+          const stopBtn  = document.getElementById("stop");
+          const copyBtn  = document.getElementById("copy");
+          const clearBtn = document.getElementById("clear");
+          const langSel  = document.getElementById("lang");
+          const out      = document.getElementById("out");
+          const statusEl = document.getElementById("status");
+
+          let rec = null;
+          let listening = false;
+
+          // 마지막으로 "인식 결과"가 들어온 시간 (무음 판단 기준)
+          let lastHeardMs = 0;
+
+          // 타이머(상태 업데이트)
+          let tickId = null;
+
+          function setStatus(text, kind){
+            // kind: idle | listening | warn | stopped | error
+            let bg = "#f3f4f6", bd="#e5e7eb";
+            if(kind === "listening"){ bg="#ecfeff"; bd="#a5f3fc"; }
+            if(kind === "warn"){ bg="#fffbeb"; bd="#fde68a"; }
+            if(kind === "stopped"){ bg="#f3f4f6"; bd="#e5e7eb"; }
+            if(kind === "error"){ bg="#fef2f2"; bd="#fecaca"; }
+            statusEl.style.background = bg;
+            statusEl.style.borderColor = bd;
+            statusEl.textContent = text;
+          }
+
+          function setButtons(){
+            startBtn.disabled = listening;
+            stopBtn.disabled  = !listening;
+          }
+
+          function stopListening(auto=false){
+            if(rec){
+              try { rec.stop(); } catch(e) {}
+            }
+            listening = false;
+            setButtons();
+            if(auto){
+              setStatus("⏹️ 1분 동안 소리가 감지되지 않아 자동으로 정지되었습니다.", "stopped");
+            } else {
+              setStatus("⚫️ 중지됨", "stopped");
+            }
+            if(tickId){
+              clearInterval(tickId);
+              tickId = null;
+            }
+          }
+
+          function startListening(){
+            if(!rec) return;
+
+            listening = true;
+            lastHeardMs = Date.now(); // 시작 시점 기준으로 타이머 시작
+            setButtons();
+            setStatus("🔴 듣는 중…", "listening");
+
+            try { rec.start(); } catch(e) {}
+
+            // 0.5초마다 무음 체크
+            tickId = setInterval(() => {
+              if(!listening) return;
+
+              const elapsed = Date.now() - lastHeardMs;
+
+              // 10초 무음 경고
+              if(elapsed >= 10000 && elapsed < 60000){
+                setStatus("⚠️ 소리가 들리지 않아요 (마이크/주변 소음/권한을 확인해 주세요)", "warn");
+              }
+
+              // 1분 무음 자동 정지
+              if(elapsed >= 60000){
+                stopListening(true);
+              }
+            }, 500);
+          }
+
+          if(!SpeechRecognition){
+            setStatus("❌ 이 브라우저는 음성 인식을 지원하지 않습니다. 크롬/엣지로 시도해 주세요.", "error");
+            startBtn.disabled = true;
+            stopBtn.disabled = true;
           } else {
-            const rec = new SpeechRecognition();
-            rec.lang = sel.value;
+            rec = new SpeechRecognition();
+            rec.lang = langSel.value;
             rec.interimResults = true;
             rec.continuous = true;
 
-            sel.onchange = () => { rec.lang = sel.value; };
+            langSel.onchange = () => {
+              if(rec) rec.lang = langSel.value;
+            };
 
+            // 인식 결과가 들어오면 "소리가 들렸다"로 판단하고 타이머 리셋
             rec.onresult = (e) => {
               let text = "";
-              for (let i = 0; i < e.results.length; i++) {
+              for(let i=0; i<e.results.length; i++){
                 text += e.results[i][0].transcript;
               }
               out.value = text;
+
+              // ✅ 여기서 마지막 입력 시간을 갱신 → 무음 타이머 리셋
+              lastHeardMs = Date.now();
+
+              // 듣는 중 표시로 복귀
+              if(listening){
+                setStatus("🔴 듣는 중…", "listening");
+              }
             };
 
-            document.getElementById("start").onclick = () => { try { rec.start(); } catch(e) {} };
-            document.getElementById("stop").onclick = () => { try { rec.stop(); } catch(e) {} };
-            document.getElementById("clear").onclick = () => { out.value = ""; };
-            document.getElementById("copy").onclick = async () => {
-              try { await navigator.clipboard.writeText(out.value); } catch (e) {}
+            // 사용자가 권한을 막았거나 오류가 나면 상태 표시
+            rec.onerror = (e) => {
+              // e.error: "not-allowed", "service-not-allowed", "no-speech" 등
+              listening = false;
+              setButtons();
+              if(tickId){
+                clearInterval(tickId);
+                tickId = null;
+              }
+              if(e && e.error === "not-allowed"){
+                setStatus("❌ 마이크 권한이 차단되어 있어요. 주소창 왼쪽 자물쇠에서 마이크 허용 후 다시 시도해 주세요.", "error");
+              } else if(e && e.error === "no-speech"){
+                setStatus("⚠️ 음성이 감지되지 않았어요. 마이크를 확인해 주세요.", "warn");
+              } else {
+                setStatus("❌ 음성 인식 오류: " + (e && e.error ? e.error : "unknown"), "error");
+              }
             };
+
+            rec.onend = () => {
+              // 사용자가 stop을 눌렀거나 브라우저가 종료했을 때
+              // listening이 true인 상태로 end가 오면(일시적 종료)도 있을 수 있어서
+              // 여기서는 버튼 상태만 안전하게 맞춰줌
+              if(listening){
+                // 일부 브라우저에서 연속 인식 중간에 end가 발생하기도 함
+                // 너무 공격적으로 재시작하면 UX가 이상해져서, 사용자가 다시 시작하도록 둠
+                listening = false;
+                setButtons();
+                if(tickId){
+                  clearInterval(tickId);
+                  tickId = null;
+                }
+                setStatus("⚫️ 중지됨 (브라우저가 인식을 종료했어요. 다시 시작을 눌러주세요)", "stopped");
+              }
+            };
+
+            startBtn.onclick = () => startListening();
+            stopBtn.onclick  = () => stopListening(false);
+
+            copyBtn.onclick = async () => {
+              try { await navigator.clipboard.writeText(out.value || ""); } catch(e) {}
+            };
+
+            clearBtn.onclick = () => {
+              out.value = "";
+              // 텍스트를 지우는 건 "무음"이랑 별개라서 타이머는 그대로 둠
+            };
+
+            setButtons();
+            setStatus("⚪️ 대기 중", "idle");
           }
         </script>
         """,
-        height=340,
+        height=420,
     )
-
-
-   
-
