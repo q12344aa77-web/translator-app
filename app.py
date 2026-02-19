@@ -1,4 +1,4 @@
-import json
+import jsonㅇ
 from datetime import datetime
 from io import BytesIO
 
@@ -139,7 +139,7 @@ with st.sidebar:
 
     secret_key, loaded_from_secrets = get_api_key()
     if loaded_from_secrets:
-        st.success("Secrets에서 API 키 로드됨")
+        st.success("API로드 됨")
         api_key = secret_key
     else:
         api_key = st.text_input("Gemini API Key 입력", type="password")
@@ -559,3 +559,4 @@ with tab_voice:
         """,
         height=420,
     )
+
